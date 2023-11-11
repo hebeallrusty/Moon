@@ -499,13 +499,19 @@ def RAandDec(T):
     
     return((alpha,delta,epsilon,delta_psi/3600,MoonPi))
 
-def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude):
+def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude,Event):
     # Meeus expects Longitude to be positive in the West and Negative in East
     # calculate Moon Rise and Set
     
     # alpha is Right Ascention (RA)
     # delta is Declination (Dec)
     # T is Julian Day in respect of JD2000
+    # Event is either "Rise","Set", or "Transit"
+    
+    # check if Event matches one of the following, and if it doesn't, halt execution further
+    if ((Event != "Rise") + (Event != "Set") + (Event != "Transit")) == 3:
+        raise SystemExit('Event must be one of "Rise","Set" or "Transit"')
+    
 
     T = CalculateT(YEAR,MONTH,DAY)
     JD = JulianDay(YEAR,MONTH,DAY)
@@ -532,7 +538,13 @@ def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude):
     #print(alpha)
     # from Meeus 15.1
     CosH0 = (math.sin(math.radians(h0)) - (math.sin(math.radians(Latitude)) * math.sin(math.radians(delta)))) / (math.cos(math.radians(Latitude)) * math.cos(math.radians(delta)))
+    
     #print("CosH0",CosH0)
+    
+    # check if (-1 < CosH0 < 1) is - if it isn't, then the event doesn't happen (i.e. it won't rise or set)
+    if abs(CosH0) > 1:
+        return(False)
+    
     
     H0 = (math.degrees(math.acos(CosH0))) % 180
     #print("H0", H0)
@@ -592,6 +604,7 @@ def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude):
     # H[0] for transit needs to be in range -180 to +180
     if H[0] < 0:
         sign = (-1)
+        
     else:
         sign = 1
     
@@ -605,24 +618,43 @@ def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude):
     m = [(m[i] + delta_m[i]) * 24 for i in range(3) ]
     
     
+    # return correct calculation:
+    if Event == "Rise":
+        return(m[1])
+    elif Event == "Set":
+        return(m[2])
+    else:
+        return(M[0])
 
-    return((m[1],m[2]))
+    return((m[1],m[2],m[0]))
 
 
 
-def MoonRiseSet(YEAR,MONTH,DAY,Latitude,Longitude):
+def MoonTime(YEAR,MONTH,DAY,Latitude,Longitude,Event):
     #
     # Longitude is positive west, negative east!!
     # correction to add to day is fractions of a day
-    trise = [0,0]
-    tset = [0,0]
+    Times = 0
+    TimesPrevDay = 0
     
     for i in range(3):
-        trise = EstimateMoon(YEAR,MONTH,DAY + (trise[0] / 24),Latitude,Longitude)
-        tset = EstimateMoon(YEAR,MONTH,DAY + (tset[1] / 24),Latitude,Longitude)
+        # get the required time of the event
+        Times = EstimateMoon(YEAR,MONTH,DAY + (Times / 24),Latitude,Longitude,Event)
+        # also check yesterday's time of event
+        TimesPrevDay = EstimateMoon(YEAR,MONTH, DAY - 1 + (TimesPrevDay / 24),Latitude,Longitude,Event)
+        
+        # if result is Circumpolar, then no event
+        if Times == False:
+            return(False)
+    
+    #print("Time",Times, "Time Previous Day",TimesPrevDay)
+    
+    # check the difference between yesterday's and today's event, if there is less that 5 mins of difference, then the event didn't happen
+    if abs(Times - TimesPrevDay) < (5/60):
+        return(False)
+    else:
+        return(Hrs(Times))
         
     #print("Rise:", Hrs(trise[0]), "Set:",Hrs(tset[1]))
-    
-    return([Hrs(trise[0]),Hrs(tset[1])])
 
     
