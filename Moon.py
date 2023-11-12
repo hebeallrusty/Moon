@@ -7,7 +7,7 @@
 #
 # The method of calculation is based on those by Jean Meeus in Astronomical Algorithms and relevant chapters / equation locations are noted
 #
-# TODO - deal with circumpolar situations / days when the moon doesn't rise or set
+# Moon Rise, Set or Transit can be obtained by calling MoonTime(YEAR,MONTH,DAY,Latitude,Longitude,Event) where event is either "Rise","Set" or "Transit" and Lat / Lon is decimal degrees
 
 
 import math
@@ -56,6 +56,51 @@ def JulianDay(YEAR,MONTH,DAY):
         B = 0
         
     return(math.floor(365.25 * (YEAR + 4716)) + math.floor(30.6001 * (MONTH + 1)) + DAY + B - 1524.5)
+
+def CalendarDate(JDE):
+    # from Meeus ch 7
+    
+    JD = JDE + 0.5
+    
+    Z = math.floor(JD)
+    F = JD - Z
+    
+    print("Z",Z)
+    
+    if Z < 2299161:
+        A = Z
+    else:
+        alpha = math.floor((Z - 1867216.25)/36524.25)
+        A = Z + 1 + alpha - math.floor(alpha / 4)
+        print("alpha",alpha)
+        print("A",A)
+        
+    B = A + 1524
+    print("B",B)
+    C = math.floor((B - 122.1)/365.25)
+    print("C",C)
+    D = math.floor(365.25 * C)
+    print("D",D)
+    E = math.floor((B - D) / 30.6001)
+    print("E",E)
+    
+    DAY = B - D - math.floor(30.6001 * E)
+    
+    if E < 14:
+        MONTH = E - 1
+    else:
+        MONTH = E - 13
+        
+    if MONTH > 2:
+        YEAR = C - 4716
+    else:
+        YEAR = C - 4715
+        
+    TIME = Hrs(F * 24)
+    
+    return((YEAR,MONTH,DAY,TIME[0],TIME[1],TIME[2]))
+    
+
 
 def CalculateT(YEAR,MONTH,DAY):
     # calculates time T from Epoch JD2000 (JDE 2451545.0)
@@ -146,26 +191,61 @@ def psiepsilonMatrixSum(matrix,coeff,trig,D,M,Mdash,F,Ohmega):
         
     return(s)
 
+def PhaseCorrectionMatrixSum(matrix,M,Mdash,F,Ohmega):
+    # calculate the sum of the corrections for Moon Phase
+    Mpos = 0
+    Mdashpos = 1
+    Fpos = 2
+    Ohmpos = 3
+        
+    # create list for the calculation in form [new moon, full moon, quarters]
+    s = [0,0,0]
+    
+    #print("a:",a)
+      
+    for i in range(len(s)):
+        for row in matrix:
+            # sin(combination of M, Mdash, F and Ohmega) * moon phase coefficient 
+            s[i] += math.sin(math.radians((M*row[Mpos]) + (Mdash*row[Mdashpos]) + (F*row[Fpos]) + (Ohmega * row[Ohmpos]))) * row[i+4]
+
+    return(s)
+        
 
 
-def EpsilonPsi(T): #,D, M, Mdash, F):
+def CalculateLdash(T):
+    # Moon's mean longitude (Mean equinox of the date)
+    return((218.3164477 + (481267.88123421 * T) - (0.0015786 * T * T) + (T * T * T / 538841) - (T * T * T * T / 65194000)) % 360)
+
+
+def CalculateD(T):
+    # Mean elongation of the Moon
+    return((297.8501921 + (445267.1114034 * T) - (0.0018819 * T * T) + (T * T * T / 545868) - (T * T * T * T / 113065000)) % 360)
+
+def Calculate(T):
+    # Sun's mean anomaly
+    return((357.5291092 + (35999.0502909 * T) - (0.0001536 * T * T) + (T * T * T / 24490000)) % 360)
+
+def CalculateMdash(T):
+    # Moon's mean anomaly
+    return((134.9633964 + (477198.8675055 * T) + (0.0087414 * T * T) + (T * T * T / 69699) - (T * T * T * T / 14712000)) % 360)
+
+def CalculateF(T):
+    # Moon's argument of latitude (mean distance of the Moon from its ascending node)
+    return((93.2720950 + (483202.0175233 * T) - (0.0036539 * T * T) - (T * T * T / 3526000) + (T * T * T * T / 863310000)) % 360)
+
+def CalculateOhmega(T):
+    # Longitude of the ascending node of the moons mean orbit on the ecliptic
+    return((125.04452 - (1934.136261 * T) + (0.0020708 * T * T) + (T * T * T / 450000) ) % 360)
+
+def CalculateE(T):
+    # calculate Earths Eccentricity of orbit around sum from Meeus 47.6
+    return(1 - (0.002516 * T) - (0.0000074 * T * T)) 
+
+def EpsilonPsi(T,D, M, Mdash, F):
     # calculate epsilon and psi based on ch 22 of Meeus
     # !!! units are scaled by 10000 and the results need to be divided by this to correct !!!
-    
-    # Mean elongation of the moon from the sun:
-    D = (297.85036 + (445267.11480 * T) - (0.0019142 * T * T) + (T * T * T / 189474)) % 360
-    
-    # Mean anomaly of the Sun (Earth)
-    M = (357.52772 + (35999.050340 * T) - (0.0001603 * T * T) - (T * T * T / 300000)) % 360
-    
-    # Mean anomaly of the Moon:
-    Mdash = (134.96298 + (477198.867398 * T) + (0.0086972 * T * T) + (T * T * T / 56250) ) % 360
-    
-    # Moons argument of latitude:
-    F = (93.27191 + (483202.017538 * T) - (0.0036825 * T * T) + (T * T * T / 327270) ) % 360
-    
-    # Longitude of the ascending node of the moons mean orbit on the ecliptic
-    Ohmega = (125.04452 - (1934.136261 * T) + (0.0020708 * T * T) + (T * T * T / 450000) ) % 360
+
+    Ohmega = CalculateOhmega(T)
 
     # matrix of arguments of D, M, Mdash, F and Ohmega and coefficients of delta-psi and delta-epsilon
     # [ [D, M, Mdash, F, Ohmega, Delta-psi, Delta-epsilon] ]
@@ -267,32 +347,16 @@ def EpsilonPsi(T): #,D, M, Mdash, F):
     return((delta_psi,delta_epsilon,epsilon_0,epsilon))
 
 def RAandDec(T):
-    
-    #T = CalculateT(YEAR,MONTH,DAY)
+    # get the Rise Ascension (alpha) and declination (delta) of the Moon
     
     # calculate angles L', D, M, M'
     
-    # Moon's mean longitude (Mean equinox of the date)
-    Ldash = (218.3164477 + (481267.88123421 * T) - (0.0015786 * T * T) + (T * T * T / 538841) - (T * T * T * T / 65194000)) % 360
-    
-    # Mean elongation of the Moon
-    D = (297.8501921 + (445267.1114034 * T) - (0.0018819 * T * T) + (T * T * T / 545868) - (T * T * T * T / 113065000)) % 360
-    
-    # Sun's mean anomaly
-    M = (357.5291092 + (35999.0502909 * T) - (0.0001536 * T * T) + (T * T * T / 24490000)) % 360
-    
-    # Moon's mean anomaly
-    Mdash = (134.9633964 + (477198.8675055 * T) + (0.0087414 * T * T) + (T * T * T / 69699) - (T * T * T * T / 14712000)) % 360
-    
-    # Moon's argument of latitude (mean distance of the Moon from its ascending node)
-    F = (93.2720950 + (483202.0175233 * T) - (0.0036539 * T * T) - (T * T * T / 3526000) + (T * T * T * T / 863310000)) % 360
-    
-    #print(Ldash)
-    #print(D)
-    #print(M)
-    #print(Mdash)
-    #print(F)
-    
+    Ldash = CalculateLdash(T)
+    D = CalculateD(T)
+    M = Calculate(T)
+    Mdash = Calculate(T)
+    F = CalculateF(T)
+
     # Calculate 3 further arguments
     A1 = (119.75 + (131.849 * T)) % 360
     A2 = (53.09 + (479264.290 * T)) % 360
@@ -302,8 +366,8 @@ def RAandDec(T):
     #print(A2)
     #print(A3)
     
-    # calculate Earths Eccentricity of orbit around sum
-    E = 1 - (0.002516 * T) - (0.0000074 * T * T)
+    # calculate Earths Eccentricity of orbit around sum from Meeus 47.6
+    E = CalculateE(T) 
     
     #print(E)
     
@@ -473,7 +537,7 @@ def RAandDec(T):
     
     
     # get delta_psi and epsilon from calculations in Meeus Ch 22
-    delta_psi,delta_epsilon,epsilon_0,epsilon = EpsilonPsi(T)#,D, M, Mdash, F)
+    delta_psi,delta_epsilon,epsilon_0,epsilon = EpsilonPsi(T,D, M, Mdash, F)
     #print(epsilon)
     ApparentLambda = MoonLambda + (delta_psi / 3600) # in deg.
     
@@ -501,7 +565,8 @@ def RAandDec(T):
 
 def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude,Event):
     # Meeus expects Longitude to be positive in the West and Negative in East
-    # calculate Moon Rise and Set
+    # calculate Moon Rise and Set for iterative purposes - subsequent estimates should be obtained by increasing the DAY variable by fractions of a day i.e. DAY + (hours / 24)
+    # for example DAY = 21; first estimate is 16:15, the DAY should then be entered as 21 + (16.25 / 24) = 21.67708
     
     # alpha is Right Ascention (RA)
     # delta is Declination (Dec)
@@ -656,5 +721,124 @@ def MoonTime(YEAR,MONTH,DAY,Latitude,Longitude,Event):
         return(Hrs(Times))
         
     #print("Rise:", Hrs(trise[0]), "Set:",Hrs(tset[1]))
+    return(False)
 
+def Phase(YEAR):
+
+    # calculate k Meeus 49.2
+    k_orig = ((YEAR) - 2000) * 12.3685
     
+    # k is integer at New Moon, First quarter is +0.25; Full Moon is +0.5; Last Quarter is 0.75   
+    k = math.floor(k_orig)
+    print("k",k)
+    
+    # calculate T Meeus 49.3
+    T = k / 1236.85
+    
+    # Calculate JDE as Meeus 49.1
+    JDE = 2451550.09766 + (29.530588861 * k) + (0.00015437 * T * T) - (0.000000150 * T * T * T) + (0.00000000073 * T * T * T * T)
+    print("JDE",JDE)
+
+    # calculate E
+    E = CalculateE(T)
+    print("E",E)
+    
+    # calculate M, Mdash, F, Ohmega - different to those used in Moon Rise / Set times
+    
+    # Suns mean anomaly at time JDE Meeus 49.4
+    M = (2.5534 + (29.10535670 * k) - (0.0000014 * T * T) - (0.00000011 * T * T * T)) % 360
+    print("M",M)
+    # Moons mean anomaly Meeus 49.5
+    Mdash = (201.5643 + (385.81693528 * k) + (0.0107582 * T * T) + (0.00001238 * T * T * T) - (0.000000058 * T * T * T * T)) % 360
+    print("Mdash",Mdash)
+    # Moon's argument of latitude Meeus 49.6
+    F = (160.7108 + (390.67050284 * k) - (0.0016118 * T * T) -(0.00000227 * T * T * T) + (0.000000011 * T * T * T * T)) % 360
+    print("F",F)
+    # Longitude of the ascending node of the lunar orbit Meeus 49.7
+    Ohmega = (124.7746 - (1.56375588 * k) + (0.0020672 * T * T) + (0.00000215 * T * T * T)) % 360
+    print("Ohmega",Ohmega)
+    
+    
+    #DEBUG
+    E = 1.0005753
+    M = 45.7375
+    Mdash = 95.3722
+    F = 120.9584
+    Ohmega = 207.3176
+    
+    # Planetary corrections - combining both into one matrix (14nr corrections, A1 = A[0] etc)
+    # [coeff, argument]
+    A = [ \
+        [0.000325,299.77 + (0.107408 * k) - (0.009173 * T * T) ],
+        [0.000165, 251.88 + (0.016321 * k)],
+        [0.000164, 251.83 + (26.651886 * k)],
+        [0.000126, 349.42 + (36.412478 * k)],
+        [0.000110, 84.66 + (18.206239 * k)],
+        [0.000062, 141.74 + (53.303771 * k)],
+        [0.000060, 207.14 + (2.453732 * k)],
+        [0.000056, 154.84 + 7.306860 * k],
+        [0.000047, 34.52 + (27.261239 * k)],
+        [0.000042, 207.19 + (0.121824 * k)],
+        [0.000040, 291.34 + (1.844379 * k)],
+        [0.000037, 161.72 + (24.198154 * k)],
+        [0.000035, 239.56 + (25.513099 * k)],
+        [0.000023, 331.55 + (3.592518 * k)],
+        ]
+        
+    
+    # [ M, Mdash, F, Ohmega, New Moon, Full Moon, First & Last Quarter]    
+    CorrectionsMatrix = [ \
+        [0,1,0,0,-0.40720, -0.40614, -0.62801],
+        [1,0,0,0, 0.17241 * E, 0.17302 * E, 0.17172 * E ],
+        [0,2,0,0,0.01608,0.01614,0.00862],
+        [0,0,2,0,0.01039,0.01043, 0.00804],
+        [-1,1,0,0,0.00739 * E, 0.00734 * E,0.00454 * E],
+        [1,1,0,0,-0.00514 * E, -0.00515 * E,-0.01183 * E],
+        [2,0,0,0,0.00208 * E * E, 0.00209 * E * E,0.00204 * E * E],
+        [0,1,-2,0,-0.00111,-0.00111,-0.00180],
+        [0,1,2,0,-0.00057,-0.00057,-0.00070],
+        [1,2,0,0,0.00056 * E,0.00056 * E,0.00027 * E],
+        [0,3,0,0,-0.00042,-0.00042,-0.00040],
+        [1,0,2,0,0.00042 * E, 0.00042 * E,0.00032 * E],
+        [1,0,-2,0,0.0038 * E, 0.00038 * E,0.00032 * E],
+        [-1,2,0,0,-0.00024 * E, - 0.00024 * E,-0.00034 * E],
+        [0,0,0,1,-0.00017,-0.00017,-0.00017],
+        [2,1,0,0,-0.00007,-0.00007,-0.0028 * E * E],
+        [0,2,-2,0,0.00004,0.00004,0.00002],
+        [3,0,0,0,0.00004,0.00004,0.00003],
+        [1,1,-2,0,0.00003,0.00003,0.00003],
+        [0,2,2,0,0.00003,0.00003,0.00004],
+        [1,1,2,0,-0.00003,-0.00003,-0.00004],
+        [-1,1,2,0,0.00003,0.00003,0.00002],
+        [-1,1,-2,0,-0.00002,-0.00002,-0.00005],
+        [1,3,0,0,-0.00002,-0.00002,-0.00002],
+        [0,4,0,0,0.00002,0.00002,0],
+        [-2,1,0,0,0,0,0.00004]
+            ]
+    
+    # W for quarter phases only
+    W = 0.00306 - (0.00038 * E * math.cos(math.radians(M))) + (0.00026 * math.cos(math.radians(Mdash))) - (0.00002 * math.cos(math.radians(Mdash - M))) + (0.00002 * math.cos(math.radians(Mdash + M))) + (0.00002 * math.cos(math.radians(2 * F)))
+
+    ApparentPhase = PhaseCorrectionMatrixSum(CorrectionsMatrix,M,Mdash,F,Ohmega)
+    # generate the last Quarter
+    ApparentPhase.append(ApparentPhase[2])
+    print("ApparentPhase",ApparentPhase)
+    
+    
+    AdditionalCorrection = 0
+    
+    for row in A:
+        # calculate the additional correction required
+        AdditionalCorrection += row[0] * math.sin(math.radians(row[1]))
+    print("AdditionalCorrection", AdditionalCorrection)
+    
+    # add the additional correction and W to the phases to get correct phase
+    ApparentPhase = [i + AdditionalCorrection for i in ApparentPhase]
+    ApparentPhase[2] += W
+    ApparentPhase[3] -= W
+    
+    print("Final ApparentPhase",ApparentPhase)
+    
+    
+    
+    return(JDE + ApparentPhase[0])
