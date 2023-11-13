@@ -65,24 +65,24 @@ def CalendarDate(JDE):
     Z = math.floor(JD)
     F = JD - Z
     
-    print("Z",Z)
+    #print("Z",Z)
     
     if Z < 2299161:
         A = Z
     else:
         alpha = math.floor((Z - 1867216.25)/36524.25)
         A = Z + 1 + alpha - math.floor(alpha / 4)
-        print("alpha",alpha)
-        print("A",A)
+        #print("alpha",alpha)
+        #print("A",A)
         
     B = A + 1524
-    print("B",B)
+    #print("B",B)
     C = math.floor((B - 122.1)/365.25)
-    print("C",C)
+    #print("C",C)
     D = math.floor(365.25 * C)
-    print("D",D)
+    #print("D",D)
     E = math.floor((B - D) / 30.6001)
-    print("E",E)
+    #print("E",E)
     
     DAY = B - D - math.floor(30.6001 * E)
     
@@ -199,14 +199,14 @@ def PhaseCorrectionMatrixSum(matrix,M,Mdash,F,Ohmega):
     Ohmpos = 3
         
     # create list for the calculation in form [new moon, full moon, quarters]
-    s = [0,0,0]
+    s = [0,0,0,0]
     
     #print("a:",a)
       
     for i in range(len(s)):
         for row in matrix:
             # sin(combination of M, Mdash, F and Ohmega) * moon phase coefficient 
-            s[i] += math.sin(math.radians((M*row[Mpos]) + (Mdash*row[Mdashpos]) + (F*row[Fpos]) + (Ohmega * row[Ohmpos]))) * row[i+4]
+            s[i] += math.sin(math.radians((M[i] * row[Mpos]) + (Mdash[i] * row[Mdashpos]) + (F[i] * row[Fpos]) + (Ohmega[i] * row[Ohmpos]))) * row[i+4]
 
     return(s)
         
@@ -724,121 +724,142 @@ def MoonTime(YEAR,MONTH,DAY,Latitude,Longitude,Event):
     return(False)
 
 def Phase(YEAR):
-
+    # calculate all 4 phases at once by using lists
+    # times off for Full and Last Quarter - phase correction matrix seems to nearly calculate approx the same as Meeus which could be rounding / implementation of language
+    
     # calculate k Meeus 49.2
     k_orig = ((YEAR) - 2000) * 12.3685
     
-    # k is integer at New Moon, First quarter is +0.25; Full Moon is +0.5; Last Quarter is 0.75   
-    k = math.floor(k_orig)
-    print("k",k)
+    # k is integer at New Moon, First quarter is +0.25; Full Moon is +0.5; Last Quarter is 0.75
+    k = [0] * 4
+    k = [math.floor(k_orig) + ( 0.25 * i) for i in range(4) ]
+    #print("k",k)
     
     # calculate T Meeus 49.3
-    T = k / 1236.85
+    T = [0] * 4
+    T = [i / 1236.85 for i in k]
+    #print("T",T)
     
     # Calculate JDE as Meeus 49.1
-    JDE = 2451550.09766 + (29.530588861 * k) + (0.00015437 * T * T) - (0.000000150 * T * T * T) + (0.00000000073 * T * T * T * T)
-    print("JDE",JDE)
+    JDE = [0] * 4
+    JDE = [2451550.09766 + (29.530588861 * k[i]) + (0.00015437 * T[i] * T[i]) - (0.000000150 * T[i] * T[i] * T[i]) + (0.00000000073 * T[i] * T[i] * T[i] * T[i]) for i in range(4)]
+    #print("JDE",JDE)
 
     # calculate E
-    E = CalculateE(T)
-    print("E",E)
+    E = [0] * 4
+    E = [CalculateE(i) for i in T]
+    #print("E",E)
     
     # calculate M, Mdash, F, Ohmega - different to those used in Moon Rise / Set times
     
     # Suns mean anomaly at time JDE Meeus 49.4
-    M = (2.5534 + (29.10535670 * k) - (0.0000014 * T * T) - (0.00000011 * T * T * T)) % 360
-    print("M",M)
+    M = [0] * 4
+    M = [(2.5534 + (29.10535670 * k[i]) - (0.0000014 * T[i] * T[i]) - (0.00000011 * T[i]* T[i] * T[i])) % 360 for i in range(4)] 
+    #print("M",M)
+    
     # Moons mean anomaly Meeus 49.5
-    Mdash = (201.5643 + (385.81693528 * k) + (0.0107582 * T * T) + (0.00001238 * T * T * T) - (0.000000058 * T * T * T * T)) % 360
-    print("Mdash",Mdash)
+    Mdash = [0] * 4
+    Mdash = [(201.5643 + (385.81693528 * k[i]) + (0.0107582 * T[i] * T[i]) + (0.00001238 * T[i] * T[i] * T[i]) - (0.000000058 * T[i] * T[i] * T[i] * T[i])) % 360 for i in range(4)]
+    #print("Mdash",Mdash)
+    
     # Moon's argument of latitude Meeus 49.6
-    F = (160.7108 + (390.67050284 * k) - (0.0016118 * T * T) -(0.00000227 * T * T * T) + (0.000000011 * T * T * T * T)) % 360
-    print("F",F)
+    F = [0] * 4
+    F = [(160.7108 + (390.67050284 * k[i]) - (0.0016118 * T[i] * T[i]) -(0.00000227 * T[i] * T[i] * T[i]) + (0.000000011 * T[i] * T[i] * T[i] * T[i])) % 360 for i in range(4)]
+    #print("F",F)
+    
     # Longitude of the ascending node of the lunar orbit Meeus 49.7
-    Ohmega = (124.7746 - (1.56375588 * k) + (0.0020672 * T * T) + (0.00000215 * T * T * T)) % 360
-    print("Ohmega",Ohmega)
+    Ohmega = [0] * 4
+    Ohmega = [(124.7746 - (1.56375588 * k[i]) + (0.0020672 * T[i] * T[i]) + (0.00000215 * T[i] * T[i] * T[i])) % 360 for i in range(4)]
+    #print("Ohmega",Ohmega)
     
     
     #DEBUG
-    E = 1.0005753
-    M = 45.7375
-    Mdash = 95.3722
-    F = 120.9584
-    Ohmega = 207.3176
+    #E = 1.0005753
+    #M = 45.7375
+    #Mdash = 95.3722
+    #F = 120.9584
+    #Ohmega = 207.3176
     
     # Planetary corrections - combining both into one matrix (14nr corrections, A1 = A[0] etc)
     # [coeff, argument]
-    A = [ \
-        [0.000325,299.77 + (0.107408 * k) - (0.009173 * T * T) ],
-        [0.000165, 251.88 + (0.016321 * k)],
-        [0.000164, 251.83 + (26.651886 * k)],
-        [0.000126, 349.42 + (36.412478 * k)],
-        [0.000110, 84.66 + (18.206239 * k)],
-        [0.000062, 141.74 + (53.303771 * k)],
-        [0.000060, 207.14 + (2.453732 * k)],
-        [0.000056, 154.84 + 7.306860 * k],
-        [0.000047, 34.52 + (27.261239 * k)],
-        [0.000042, 207.19 + (0.121824 * k)],
-        [0.000040, 291.34 + (1.844379 * k)],
-        [0.000037, 161.72 + (24.198154 * k)],
-        [0.000035, 239.56 + (25.513099 * k)],
-        [0.000023, 331.55 + (3.592518 * k)],
-        ]
+    A = [0] * 4
+    A = [[ \
+        [0.000325,299.77 + (0.107408 * k[i]) - (0.009173 * T[i] * T[i]) ],
+        [0.000165, 251.88 + (0.016321 * k[i])],
+        [0.000164, 251.83 + (26.651886 * k[i])],
+        [0.000126, 349.42 + (36.412478 * k[i])],
+        [0.000110, 84.66 + (18.206239 * k[i])],
+        [0.000062, 141.74 + (53.303771 * k[i])],
+        [0.000060, 207.14 + (2.453732 * k[i])],
+        [0.000056, 154.84 + 7.306860 * k[i]],
+        [0.000047, 34.52 + (27.261239 * k[i])],
+        [0.000042, 207.19 + (0.121824 * k[i])],
+        [0.000040, 291.34 + (1.844379 * k[i])],
+        [0.000037, 161.72 + (24.198154 * k[i])],
+        [0.000035, 239.56 + (25.513099 * k[i])],
+        [0.000023, 331.55 + (3.592518 * k[i])],
+        ] for i in range(4)]
         
     
     # [ M, Mdash, F, Ohmega, New Moon, Full Moon, First & Last Quarter]    
     CorrectionsMatrix = [ \
-        [0,1,0,0,-0.40720, -0.40614, -0.62801],
-        [1,0,0,0, 0.17241 * E, 0.17302 * E, 0.17172 * E ],
-        [0,2,0,0,0.01608,0.01614,0.00862],
-        [0,0,2,0,0.01039,0.01043, 0.00804],
-        [-1,1,0,0,0.00739 * E, 0.00734 * E,0.00454 * E],
-        [1,1,0,0,-0.00514 * E, -0.00515 * E,-0.01183 * E],
-        [2,0,0,0,0.00208 * E * E, 0.00209 * E * E,0.00204 * E * E],
-        [0,1,-2,0,-0.00111,-0.00111,-0.00180],
-        [0,1,2,0,-0.00057,-0.00057,-0.00070],
-        [1,2,0,0,0.00056 * E,0.00056 * E,0.00027 * E],
-        [0,3,0,0,-0.00042,-0.00042,-0.00040],
-        [1,0,2,0,0.00042 * E, 0.00042 * E,0.00032 * E],
-        [1,0,-2,0,0.0038 * E, 0.00038 * E,0.00032 * E],
-        [-1,2,0,0,-0.00024 * E, - 0.00024 * E,-0.00034 * E],
-        [0,0,0,1,-0.00017,-0.00017,-0.00017],
-        [2,1,0,0,-0.00007,-0.00007,-0.0028 * E * E],
-        [0,2,-2,0,0.00004,0.00004,0.00002],
-        [3,0,0,0,0.00004,0.00004,0.00003],
-        [1,1,-2,0,0.00003,0.00003,0.00003],
-        [0,2,2,0,0.00003,0.00003,0.00004],
-        [1,1,2,0,-0.00003,-0.00003,-0.00004],
-        [-1,1,2,0,0.00003,0.00003,0.00002],
-        [-1,1,-2,0,-0.00002,-0.00002,-0.00005],
-        [1,3,0,0,-0.00002,-0.00002,-0.00002],
-        [0,4,0,0,0.00002,0.00002,0],
-        [-2,1,0,0,0,0,0.00004]
+        [0,1,0,0,-0.40720, -0.40614, -0.62801, -0.62801],
+        [1,0,0,0, 0.17241 * E[0], 0.17302 * E[1], 0.17172 * E[2],0.17172 * E[3] ],
+        [0,2,0,0,0.01608,0.01614,0.00862,0.00862],
+        [0,0,2,0,0.01039,0.01043, 0.00804,0.00804],
+        [-1,1,0,0,0.00739 * E[0], 0.00734 * E[1],0.00454 * E[2],0.00454 * E[3]],
+        [1,1,0,0,-0.00514 * E[0], -0.00515 * E[1],-0.01183 * E[2],-0.01183 * E[3]],
+        [2,0,0,0,0.00208 * E[0] * E[0], 0.00209 * E[1] * E[1],0.00204 * E[2] * E[2],0.00204 * E[3] * E[3]],
+        [0,1,-2,0,-0.00111,-0.00111,-0.00180,-0.00180],
+        [0,1,2,0,-0.00057,-0.00057,-0.00070,-0.00070],
+        [1,2,0,0,0.00056 * E[0],0.00056 * E[1],0.00027 * E[2],0.00027 * E[3]],
+        [0,3,0,0,-0.00042,-0.00042,-0.00040,-0.00040],
+        [1,0,2,0,0.00042 * E[0], 0.00042 * E[1],0.00032 * E[2],0.00032 * E[3]],
+        [1,0,-2,0,0.0038 * E[0], 0.00038 * E[1],0.00032 * E[2],0.00032 * E[3]],
+        [-1,2,0,0,-0.00024 * E[0], -0.00024 * E[1],-0.00034 * E[2],-0.00034 * E[3]],
+        [0,0,0,1,-0.00017,-0.00017,-0.00017,-0.00017],
+        [2,1,0,0,-0.00007,-0.00007,-0.0028 * E[2] * E[2],-0.0028 * E[3] * E[3]],
+        [0,2,-2,0,0.00004,0.00004,0.00002,0.00002],
+        [3,0,0,0,0.00004,0.00004,0.00003,0.00003],
+        [1,1,-2,0,0.00003,0.00003,0.00003,0.00003],
+        [0,2,2,0,0.00003,0.00003,0.00004,0.00004],
+        [1,1,2,0,-0.00003,-0.00003,-0.00004,-0.00004],
+        [-1,1,2,0,0.00003,0.00003,0.00002,0.00002],
+        [-1,1,-2,0,-0.00002,-0.00002,-0.00005,-0.00005],
+        [1,3,0,0,-0.00002,-0.00002,-0.00002,-0.00002],
+        [0,4,0,0,0.00002,0.00002,0,0],
+        [-2,1,0,0,0,0,0.00004,0.00004]
             ]
     
     # W for quarter phases only
-    W = 0.00306 - (0.00038 * E * math.cos(math.radians(M))) + (0.00026 * math.cos(math.radians(Mdash))) - (0.00002 * math.cos(math.radians(Mdash - M))) + (0.00002 * math.cos(math.radians(Mdash + M))) + (0.00002 * math.cos(math.radians(2 * F)))
+    W = [0] * 2
+    W = [0.00306 - (0.00038 * E[i] * math.cos(math.radians(M[i]))) + (0.00026 * math.cos(math.radians(Mdash[i]))) - (0.00002 * math.cos(math.radians(Mdash[i] - M[i]))) + (0.00002 * math.cos(math.radians(Mdash[i] + M[i]))) + (0.00002 * math.cos(math.radians(2 * F[i]))) for i in range(2,4)]
+    #print("W",W)
 
+    # calculate phase correction from the matrix above.
     ApparentPhase = PhaseCorrectionMatrixSum(CorrectionsMatrix,M,Mdash,F,Ohmega)
-    # generate the last Quarter
-    ApparentPhase.append(ApparentPhase[2])
-    print("ApparentPhase",ApparentPhase)
     
+    #print("ApparentPhase",ApparentPhase)
+       
+    AdditionalCorrection = [0] * 4
     
-    AdditionalCorrection = 0
-    
-    for row in A:
-        # calculate the additional correction required
-        AdditionalCorrection += row[0] * math.sin(math.radians(row[1]))
-    print("AdditionalCorrection", AdditionalCorrection)
+    for i in range(4):
+        for row in A[i]:
+            # calculate the additional correction required
+            AdditionalCorrection[i] += row[0] * math.sin(math.radians(row[1]))
+    #print("AdditionalCorrection", AdditionalCorrection)
     
     # add the additional correction and W to the phases to get correct phase
-    ApparentPhase = [i + AdditionalCorrection for i in ApparentPhase]
-    ApparentPhase[2] += W
-    ApparentPhase[3] -= W
+    for i in range(4):
+        ApparentPhase[i] = ApparentPhase[i] + AdditionalCorrection[i]
     
-    print("Final ApparentPhase",ApparentPhase)
+    # correction for first and last quarters
+    ApparentPhase[2] += W[0]
+    ApparentPhase[3] -= W[1]
     
+    #print("Final ApparentPhase",ApparentPhase, "JDE",JDE[3] + ApparentPhase[3])
     
+    # create dictionary - labels for dict
+    PhaseLabel = ["New Moon","First Quarter","Full Moon", "Last Quarter"]
     
-    return(JDE + ApparentPhase[0])
+    return(dict(zip(PhaseLabel,[CalendarDate(JDE[i] + ApparentPhase[i]) for i in range(4)])))
