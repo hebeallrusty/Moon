@@ -221,7 +221,7 @@ def CalculateD(T):
     # Mean elongation of the Moon
     return((297.8501921 + (445267.1114034 * T) - (0.0018819 * T * T) + (T * T * T / 545868) - (T * T * T * T / 113065000)) % 360)
 
-def Calculate(T):
+def CalculateM(T):
     # Sun's mean anomaly
     return((357.5291092 + (35999.0502909 * T) - (0.0001536 * T * T) + (T * T * T / 24490000)) % 360)
 
@@ -353,8 +353,8 @@ def RAandDec(T):
     
     Ldash = CalculateLdash(T)
     D = CalculateD(T)
-    M = Calculate(T)
-    Mdash = Calculate(T)
+    M = CalculateM(T)
+    Mdash = CalculateMdash(T)
     F = CalculateF(T)
 
     # Calculate 3 further arguments
@@ -613,10 +613,12 @@ def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude,Event):
     
     H0 = (math.degrees(math.acos(CosH0))) % 180
     #print("H0", H0)
-    
+ 
+    nutation = delta_psi * math.cos(math.radians(epsilon))
+    #print("nutation", nutation)
     
     #DEBUG
-    BigTheta_0 = Theta0(YEAR,MONTH,DAY) 
+    BigTheta_0 = Theta0(YEAR,MONTH,DAY) - (nutation / 15)
     #print("BigTheta_0:",BigTheta_0)
 
     
@@ -637,9 +639,7 @@ def EstimateMoon(YEAR,MONTH,DAY,Latitude, Longitude,Event):
     theta_0 = [(BigTheta_0 + (360.985647 * i)) % 360 for i in m]
     #print("theta_0 (sidereal time)",theta_0)
     
-    nutation = delta_psi * math.cos(math.radians(epsilon))
-    #print("nutation", nutation)
-    
+   
     # DEBUG
     #alpha = 42.59324
     
@@ -702,7 +702,7 @@ def MoonTime(YEAR,MONTH,DAY,Latitude,Longitude,Event):
     Times = 0
     TimesPrevDay = 0
     
-    for i in range(3):
+    for i in range(5):
         # get the required time of the event
         Times = EstimateMoon(YEAR,MONTH,DAY + (Times / 24),Latitude,Longitude,Event)
         # also check yesterday's time of event
@@ -727,17 +727,22 @@ def Phase(YEAR):
     # calculate all 4 phases at once by using lists
     # times off for Full and Last Quarter - phase correction matrix seems to nearly calculate approx the same as Meeus which could be rounding / implementation of language
     
+    # YEAR to include fractional part to define month - beware that Month does not necessarily mean the event will occur in that month, and also event could happen twice in the month (blue moon for example)
+    # also calculation is centric on New Month.
+    
     # calculate k Meeus 49.2
     k_orig = ((YEAR) - 2000) * 12.3685
     
     # k is integer at New Moon, First quarter is +0.25; Full Moon is +0.5; Last Quarter is 0.75
     k = [0] * 4
-    k = [math.floor(k_orig) + ( 0.25 * i) for i in range(4) ]
+    kphasedecimal = [0,0.5,0.25,0.75] # this looks a bit odd, but the calculations below work in the order of: New Moon, Full Moon, First Quarter and Last Quarter
+    k = [math.floor(k_orig) + i for i in kphasedecimal ]
     #print("k",k)
     
     # calculate T Meeus 49.3
     T = [0] * 4
     T = [i / 1236.85 for i in k]
+
     #print("T",T)
     
     # Calculate JDE as Meeus 49.1
@@ -764,7 +769,7 @@ def Phase(YEAR):
     
     # Moon's argument of latitude Meeus 49.6
     F = [0] * 4
-    F = [(160.7108 + (390.67050284 * k[i]) - (0.0016118 * T[i] * T[i]) -(0.00000227 * T[i] * T[i] * T[i]) + (0.000000011 * T[i] * T[i] * T[i] * T[i])) % 360 for i in range(4)]
+    F = [(160.7108 + (390.67050284 * k[i]) - (0.0016118 * T[i] * T[i]) - (0.00000227 * T[i] * T[i] * T[i]) + (0.000000011 * T[i] * T[i] * T[i] * T[i])) % 360 for i in range(4)]
     #print("F",F)
     
     # Longitude of the ascending node of the lunar orbit Meeus 49.7
@@ -791,7 +796,7 @@ def Phase(YEAR):
         [0.000110, 84.66 + (18.206239 * k[i])],
         [0.000062, 141.74 + (53.303771 * k[i])],
         [0.000060, 207.14 + (2.453732 * k[i])],
-        [0.000056, 154.84 + 7.306860 * k[i]],
+        [0.000056, 154.84 + (7.306860 * k[i])],
         [0.000047, 34.52 + (27.261239 * k[i])],
         [0.000042, 207.19 + (0.121824 * k[i])],
         [0.000040, 291.34 + (1.844379 * k[i])],
@@ -799,14 +804,17 @@ def Phase(YEAR):
         [0.000035, 239.56 + (25.513099 * k[i])],
         [0.000023, 331.55 + (3.592518 * k[i])],
         ] for i in range(4)]
-        
+    #print("A",A)
+    
+    #DEBUG    
+    #E = [1,1,1,1]
     
     # [ M, Mdash, F, Ohmega, New Moon, Full Moon, First & Last Quarter]    
     CorrectionsMatrix = [ \
-        [0,1,0,0,-0.40720, -0.40614, -0.62801, -0.62801],
-        [1,0,0,0, 0.17241 * E[0], 0.17302 * E[1], 0.17172 * E[2],0.17172 * E[3] ],
+        [0,1,0,0,-0.40720,-0.40614,-0.62801,-0.62801],
+        [1,0,0,0, 0.17241 * E[0], 0.17302 * E[1],0.17172 * E[2],0.17172 * E[3] ],
         [0,2,0,0,0.01608,0.01614,0.00862,0.00862],
-        [0,0,2,0,0.01039,0.01043, 0.00804,0.00804],
+        [0,0,2,0,0.01039,0.01043,0.00804,0.00804],
         [-1,1,0,0,0.00739 * E[0], 0.00734 * E[1],0.00454 * E[2],0.00454 * E[3]],
         [1,1,0,0,-0.00514 * E[0], -0.00515 * E[1],-0.01183 * E[2],-0.01183 * E[3]],
         [2,0,0,0,0.00208 * E[0] * E[0], 0.00209 * E[1] * E[1],0.00204 * E[2] * E[2],0.00204 * E[3] * E[3]],
@@ -830,6 +838,12 @@ def Phase(YEAR):
         [0,4,0,0,0.00002,0.00002,0,0],
         [-2,1,0,0,0,0,0.00004,0.00004]
             ]
+    # DEBUG
+    #N = []
+    #for row in CorrectionsMatrix:
+    #    N.append([row[0],row[1],row[2],row[3],row[5]])
+    #print(N)
+    
     
     # W for quarter phases only
     W = [0] * 2
@@ -860,6 +874,6 @@ def Phase(YEAR):
     #print("Final ApparentPhase",ApparentPhase, "JDE",JDE[3] + ApparentPhase[3])
     
     # create dictionary - labels for dict
-    PhaseLabel = ["New Moon","First Quarter","Full Moon", "Last Quarter"]
+    PhaseLabel = ["New Moon","Full Moon","First Quarter", "Last Quarter"]
     
     return(dict(zip(PhaseLabel,[CalendarDate(JDE[i] + ApparentPhase[i]) for i in range(4)])))
